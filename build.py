@@ -44,6 +44,7 @@ import time
 import webbrowser
 from pathlib import Path
 from typing import List, Optional, Set
+from livereload import Server
 
 # ============================================================================
 # 配置
@@ -66,6 +67,16 @@ HEAD_INJECTION = (
 # ============================================================================
 # 增量编译辅助函数
 # ============================================================================
+
+
+def watch(interval: float = 1.0, port: int = 8000, open_browser_flag: bool = True):
+    print("🕵️ 监听 content/ 文件修改中... 按 Ctrl+C 停止")
+
+    # 启动 livereload 服务器
+    server = Server()
+    server.watch(str(CONTENT_DIR / '**/*.typ'), lambda: build_html(force=False))
+    server.watch(str(ASSETS_DIR / '**/*'), lambda: copy_assets())
+    server.serve(root=str(SITE_DIR), port=port, open_url_delay=1 if open_browser_flag else None)
 
 
 def get_file_mtime(path: Path) -> float:
@@ -743,6 +754,17 @@ def create_parser():
         "--no-open", action="store_false", dest="open_browser", help="不自动打开浏览器"
     )
     preview_parser.set_defaults(open_browser=True)
+    watch_parser = subparsers.add_parser("watch", help="实时监听 content/ 并自动构建 HTML")
+    watch_parser.add_argument(
+        "-p", "--port", type=int, default=8000, help="本地服务器端口号（默认: 8000）"
+    )
+    watch_parser.add_argument(
+        "--no-open", action="store_false", dest="open_browser", help="不自动打开浏览器"
+    )
+    watch_parser.add_argument(
+        "-i", "--interval", type=float, default=1.0, help="检测文件修改的间隔时间（秒）"
+    )
+    watch_parser.set_defaults(open_browser=True)
 
     return parser
 
@@ -770,6 +792,7 @@ if __name__ == "__main__":
         "assets": lambda: (SITE_DIR.mkdir(parents=True, exist_ok=True), copy_assets())[1],
         "clean": clean,
         "preview": lambda: preview(getattr(args, "port", 8000), getattr(args, "open_browser", True)),
+        "watch": lambda: watch(getattr(args, "interval", 1.0), getattr(args, "port", 8000), getattr(args, "open_browser", True)),
     }
 
     success = commands[args.command]()
